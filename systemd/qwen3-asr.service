@@ -1,0 +1,15 @@
+[Unit]
+Description=Qwen3-ASR P25 Transcription Server
+After=network.target
+
+[Service]
+Type=simple
+User=millerah
+WorkingDirectory=/home/millerah/qwen3-asr-server
+EnvironmentFile=/home/millerah/qwen3-asr-server/.env
+ExecStart=/home/millerah/qwen3-asr-server/.venv/bin/python server.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

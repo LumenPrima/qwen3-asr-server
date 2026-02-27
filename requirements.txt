@@ -1,0 +1,9 @@
+torch
+transformers>=4.50
+accelerate
+fastapi
+uvicorn[standard]
+python-multipart
+soundfile
+librosa
+qwen_asr

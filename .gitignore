@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Model weights (too large for git — download separately)
+qwen3-asr-p25-0.6B/
+Qwen3-ForcedAligner-0.6B/
+
+# Runtime
+server.log
+*.log
+
+# Environment
+.env
