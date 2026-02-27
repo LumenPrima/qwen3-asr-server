@@ -13,3 +13,6 @@ server.log
 
 # Environment
 .env
+
+# Claude Code
+CLAUDE.md
