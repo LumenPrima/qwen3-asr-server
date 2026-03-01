@@ -35,7 +35,7 @@ from qwen_asr import Qwen3ASRModel
 # ---------------------------------------------------------------------------
 MODEL_PATH = os.environ.get("MODEL_PATH", "qwen3-asr-p25-0.6B")
 ALIGNER_PATH = os.environ.get("ALIGNER_PATH", "Qwen3-ForcedAligner-0.6B")
-DEVICE = os.environ.get("DEVICE", "cuda:0")
+_DEVICE_RAW = os.environ.get("DEVICE", "auto")   # changed default to "auto"
 DTYPE = os.environ.get("DTYPE", "bfloat16")
 MAX_NEW_TOKENS = int(os.environ.get("MAX_NEW_TOKENS", "512"))
 HOST = os.environ.get("HOST", "0.0.0.0")
@@ -71,6 +71,86 @@ LANG_MAP = {
 }
 
 # ---------------------------------------------------------------------------
+# Device + dtype resolution
+# ---------------------------------------------------------------------------
+
+def resolve_device(requested: str) -> str:
+    """
+    Resolve the best available device.
+
+    When DEVICE=auto (the default), priority is:
+      1. CUDA  (NVIDIA GPU — Linux / Windows)
+      2. MPS   (Apple Silicon — macOS 12.3+)
+      3. CPU   (universal fallback)
+
+    You can still pin a device explicitly:
+      DEVICE=cuda:0   DEVICE=mps   DEVICE=cpu
+    """
+    req = requested.lower().strip()
+
+    if req == "auto":
+        if torch.cuda.is_available():
+            return "cuda:0"
+        if torch.backends.mps.is_available():
+            return "mps"
+        return "cpu"
+
+    if req.startswith("cuda") and not torch.cuda.is_available():
+        print(f"WARNING: CUDA requested but not available — falling back to CPU")
+        return "cpu"
+
+    if req == "mps" and not torch.backends.mps.is_available():
+        print(f"WARNING: MPS requested but not available — falling back to CPU")
+        return "cpu"
+
+    return req
+
+
+def resolve_dtype(dtype_str: str, device: str) -> torch.dtype:
+    """
+    Resolve dtype, with an automatic bfloat16 → float16 fallback on MPS.
+
+    bfloat16 on MPS requires macOS 14+ and PyTorch 2.2+.
+    We probe it at startup and downgrade silently if it isn't supported.
+    """
+    dt = DTYPE_MAP.get(dtype_str.lower(), torch.bfloat16)
+
+    if device == "mps" and dt == torch.bfloat16:
+        try:
+            torch.zeros(1, dtype=torch.bfloat16, device="mps")
+            print("MPS bfloat16 probe: supported ✓")
+        except (RuntimeError, TypeError):
+            print("MPS bfloat16 not supported on this system — using float16 instead")
+            dt = torch.float16
+
+    return dt
+
+
+def device_map_arg(device: str):
+    """
+    Convert a device string to the form expected by Qwen3ASRModel / transformers.
+
+    transformers' device_map on MPS must be {"": "mps"} rather than the bare
+    string "mps", because the accelerate dispatcher doesn't enumerate MPS as a
+    named device the way it does for CUDA.  Using {"": "mps"} puts every layer
+    on the single MPS device without going through accelerate's CUDA-specific
+    multi-device path.
+
+    For CPU we also use the dict form so the code path is consistent.
+    For CUDA strings (e.g. "cuda:0") the bare string works fine.
+    """
+    if device in ("mps", "cpu"):
+        return {"": device}
+    return device  # e.g. "cuda:0" — leave as-is
+
+
+DEVICE = resolve_device(_DEVICE_RAW)
+_DTYPE_OBJ = resolve_dtype(DTYPE, DEVICE)
+_DEVICE_MAP = device_map_arg(DEVICE)
+
+print(f"Device: {DEVICE}  |  dtype: {_DTYPE_OBJ}  |  device_map: {_DEVICE_MAP}")
+
+# ---------------------------------------------------------------------------
 # App + model
 # ---------------------------------------------------------------------------
 app = FastAPI(title="qwen3-asr-p25-server", version="1.2.0")
@@ -92,15 +172,14 @@ def has_speech(audio_path: str) -> bool:
 @app.on_event("startup")
 def load_model():
     global model
-    dt = DTYPE_MAP.get(DTYPE, torch.bfloat16)
     print(f"Loading model: {MODEL_PATH} (device={DEVICE}, dtype={DTYPE})")
     print(f"Loading aligner: {ALIGNER_PATH}")
     model = Qwen3ASRModel.from_pretrained(
         MODEL_PATH,
         forced_aligner=ALIGNER_PATH,
-        forced_aligner_kwargs=dict(dtype=dt, device_map=DEVICE),
-        dtype=dt,
-        device_map=DEVICE,
+        forced_aligner_kwargs=dict(dtype=_DTYPE_OBJ, device_map=_DEVICE_MAP),
+        dtype=_DTYPE_OBJ,
+        device_map=_DEVICE_MAP,
         max_new_tokens=MAX_NEW_TOKENS,
     )
     print("Model + aligner loaded.")
