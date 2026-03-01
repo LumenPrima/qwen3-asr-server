@@ -35,7 +35,7 @@ from qwen_asr import Qwen3ASRModel
 # ---------------------------------------------------------------------------
 MODEL_PATH = os.environ.get("MODEL_PATH", "qwen3-asr-p25-0.6B")
 ALIGNER_PATH = os.environ.get("ALIGNER_PATH", "Qwen3-ForcedAligner-0.6B")
-_DEVICE_RAW = os.environ.get("DEVICE", "auto")   # changed default to "auto"
+_DEVICE_RAW = os.environ.get("DEVICE", "auto")
 DTYPE = os.environ.get("DTYPE", "bfloat16")
 MAX_NEW_TOKENS = int(os.environ.get("MAX_NEW_TOKENS", "512"))
 HOST = os.environ.get("HOST", "0.0.0.0")
@@ -46,6 +46,14 @@ WORKERS = int(os.environ.get("WORKERS", "1"))
 # RMS energy threshold: audio below this is silence/static/encrypted
 # Empirically: hallucinations <0.003 RMS, real speech >0.03 RMS
 SPEECH_RMS_THRESHOLD = float(os.environ.get("SPEECH_RMS_THRESHOLD", "0.01"))
+
+# MPS memory management — cap MPS allocations to this fraction of system RAM.
+# Lowering this causes MPS to raise an error earlier rather than crashing hard.
+# Set via PYTORCH_MPS_HIGH_WATERMARK_RATIO in .env or environment.
+# Default PyTorch value is 1.0 (no cap); 0.7 is a safe starting point.
+_MPS_WATERMARK = os.environ.get("PYTORCH_MPS_HIGH_WATERMARK_RATIO", None)
+if _MPS_WATERMARK is not None:
+    os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = _MPS_WATERMARK
 
 DTYPE_MAP = {
     "bfloat16": torch.bfloat16,
@@ -108,7 +116,7 @@ def resolve_device(requested: str) -> str:
 
 def resolve_dtype(dtype_str: str, device: str) -> torch.dtype:
     """
-    Resolve dtype, with an automatic bfloat16 → float16 fallback on MPS.
+    Resolve dtype, with an automatic bfloat16 -> float16 fallback on MPS.
 
     bfloat16 on MPS requires macOS 14+ and PyTorch 2.2+.
     We probe it at startup and downgrade silently if it isn't supported.
@@ -118,7 +126,7 @@ def resolve_dtype(dtype_str: str, device: str) -> torch.dtype:
     if device == "mps" and dt == torch.bfloat16:
         try:
             torch.zeros(1, dtype=torch.bfloat16, device="mps")
-            print("MPS bfloat16 probe: supported ✓")
+            print("MPS bfloat16 probe: supported v")
         except (RuntimeError, TypeError):
             print("MPS bfloat16 not supported on this system — using float16 instead")
             dt = torch.float16
@@ -142,6 +150,17 @@ def device_map_arg(device: str):
     if device in ("mps", "cpu"):
         return {"": device}
     return device  # e.g. "cuda:0" — leave as-is
+
+
+def flush_mps_cache():
+    """Release MPS memory after each inference call.
+
+    Unlike CUDA, MPS does not automatically free cached allocations between
+    calls, causing memory to accumulate across requests until the system runs
+    out and crashes with a Metal buffer allocation error.
+    """
+    if DEVICE == "mps":
+        torch.mps.empty_cache()
 
 
 DEVICE = resolve_device(_DEVICE_RAW)
@@ -245,6 +264,7 @@ async def transcribe(
 
     finally:
         os.unlink(tmp_path)
+        flush_mps_cache()  # Release MPS memory after every request
 
     # --- Format response ---
     if response_format == "text":
