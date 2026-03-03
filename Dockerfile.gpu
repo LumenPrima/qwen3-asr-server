@@ -1,0 +1,59 @@
+# GPU inference image using Python/transformers + CUDA.
+# Supports word-level timestamps via ForcedAligner.
+# Requires NVIDIA GPU + nvidia-container-toolkit on host.
+#
+# Build:
+#   docker build -f Dockerfile.gpu -t qwen3-asr-server:gpu .
+#
+# Run (models auto-download on first start):
+#   docker run --gpus all -p 8765:8765 \
+#     -v ./qwen3-asr-p25-0.6B:/model \
+#     -v ./Qwen3-ForcedAligner-0.6B:/aligner \
+#     qwen3-asr-server:gpu
+
+FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04
+
+# Avoid interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Python deps — torch with CUDA, transformers, qwen_asr
+# Install build deps first, then packages that need them at install time
+RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip3 install --no-cache-dir numpy typing_extensions && \
+    pip3 install --no-cache-dir \
+    torch \
+    'transformers>=4.50' \
+    accelerate \
+    fastapi \
+    'uvicorn[standard]' \
+    python-multipart \
+    soundfile \
+    qwen_asr \
+    huggingface_hub
+
+# Copy server + entrypoint
+COPY server.py entrypoint.sh ./
+
+ENV INFERENCE_BACKEND=python \
+    MODEL_PATH=/model \
+    ALIGNER_PATH=/aligner \
+    ASR_MODEL_REPO=AuggieActual/qwen3-asr-p25-0.6B \
+    ALIGNER_MODEL_REPO=Qwen/Qwen3-ForcedAligner-0.6B \
+    DEVICE=auto \
+    DTYPE=bfloat16 \
+    HOST=0.0.0.0 \
+    PORT=8765 \
+    WORKERS=1 \
+    SPEECH_RMS_THRESHOLD=0.01
+
+EXPOSE 8765
+
+ENTRYPOINT ["/app/entrypoint.sh"]

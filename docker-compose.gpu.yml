@@ -1,0 +1,21 @@
+services:
+  qwen3-asr:
+    image: ghcr.io/lumenprima/qwen3-asr-server:gpu
+    ports:
+      - "8765:8765"
+    volumes:
+      - ./qwen3-asr-p25-0.6B:/model
+      - ./Qwen3-ForcedAligner-0.6B:/aligner
+    environment:
+      - INFERENCE_BACKEND=python
+      - DEVICE=auto
+      - DTYPE=bfloat16
+      - SPEECH_RMS_THRESHOLD=0.01
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
