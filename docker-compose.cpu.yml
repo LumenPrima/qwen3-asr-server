@@ -1,0 +1,11 @@
+services:
+  qwen3-asr:
+    image: ghcr.io/lumenprima/qwen3-asr-server:cpu
+    ports:
+      - "8765:8765"
+    volumes:
+      - ./qwen3-asr-p25-0.6B:/model
+    environment:
+      - INFERENCE_BACKEND=c
+      - SPEECH_RMS_THRESHOLD=0.01
+    restart: unless-stopped

@@ -1,14 +1,11 @@
-# Multi-stage build: compile qwen_asr C binary, then slim runtime image.
+# CPU inference image using antirez/qwen-asr C binary.
+# No GPU required. ~800MB image.
 #
-# Build (from repo root):
-#   docker build -t qwen3-asr-server .
+# Build:
+#   docker build -t qwen3-asr-server:cpu .
 #
-# Run (mount your model weights):
-#   docker run -p 8765:8765 -v /path/to/qwen3-asr-p25-0.6B:/model qwen3-asr-server
-#
-# Or download model first:
-#   huggingface-cli download AuggieActual/qwen3-asr-p25-0.6B --local-dir ./model
-#   docker run -p 8765:8765 -v ./model:/model qwen3-asr-server
+# Run (model auto-downloads on first start):
+#   docker run -p 8765:8765 -v asr-model:/model qwen3-asr-server:cpu
 
 # --- Stage 1: Build the C binary from antirez/qwen-asr ---
 FROM debian:bookworm-slim AS builder
@@ -33,24 +30,25 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install Python deps (C-backend only — no torch needed)
+# Install Python deps (C-backend — no torch needed)
 RUN pip install --no-cache-dir \
     fastapi \
     'uvicorn[standard]' \
     python-multipart \
     soundfile \
-    numpy
+    numpy \
+    huggingface_hub
 
 # Copy C binary from builder
 COPY --from=builder /build/qwen_asr /app/qwen_asr
 
-# Copy server code
-COPY server.py .
+# Copy server + entrypoint
+COPY server.py entrypoint.sh ./
 
-# Default config for C backend
 ENV INFERENCE_BACKEND=c \
     C_BINARY_PATH=/app/qwen_asr \
     MODEL_PATH=/model \
+    ASR_MODEL_REPO=AuggieActual/qwen3-asr-p25-0.6B \
     HOST=0.0.0.0 \
     PORT=8765 \
     WORKERS=1 \
@@ -58,7 +56,4 @@ ENV INFERENCE_BACKEND=c \
 
 EXPOSE 8765
 
-# Model weights mounted at /model by the user
-VOLUME /model
-
-CMD ["python", "server.py"]
+ENTRYPOINT ["/app/entrypoint.sh"]
