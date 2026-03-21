@@ -1,6 +1,6 @@
 services:
   qwen3-asr:
-    image: ghcr.io/lumenprima/qwen3-asr-server:gpu
+    image: ghcr.io/trunk-reporter/qwen3-asr-server:gpu
     ports:
       - "8765:8765"
     volumes:

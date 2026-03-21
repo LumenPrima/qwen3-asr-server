@@ -8,25 +8,76 @@ Drop-in replacement for whisper-server — any client that talks to the OpenAI `
 
 - Python 3.10+
 - GPU: NVIDIA CUDA or Apple Silicon MPS (~4GB VRAM for both models at bfloat16). Falls back to CPU if neither is available.
-- `ffmpeg` (required by librosa for non-wav audio formats)
+- `ffmpeg` (for non-wav audio format conversion)
 
-## Quick Start
+## Quick Start with Docker
 
-The `start.sh` script handles venv creation, dependency installation, and server startup:
+The fastest way to get running. Models are downloaded automatically on first start.
+
+### GPU (NVIDIA — word-level timestamps, fastest inference)
 
 ```bash
-git clone https://github.com/YOUR_USER/qwen3-asr-server.git
-cd qwen3-asr-server
+docker run --gpus all -p 8765:8765 \
+  -v asr-model:/model -v asr-aligner:/aligner \
+  ghcr.io/trunk-reporter/qwen3-asr-server:gpu
 ```
 
-### 1. Download model weights
-
-Download both models from Hugging Face into the repo directory:
+### CPU (no GPU required — uses C inference backend)
 
 ```bash
+docker run -p 8765:8765 -v asr-model:/model \
+  ghcr.io/trunk-reporter/qwen3-asr-server:cpu
+```
+
+Or use docker compose:
+
+```bash
+# GPU
+docker compose -f docker-compose.gpu.yml up -d
+
+# CPU
+docker compose -f docker-compose.cpu.yml up -d
+```
+
+### Platform support
+
+| Platform | Docker CPU | Docker GPU | Native (`./start.sh`) |
+|----------|:----------:|:----------:|:---------------------:|
+| Linux x86 + NVIDIA | yes | yes | yes |
+| Linux ARM (Oracle, RPi) | yes | — | yes |
+| macOS Apple Silicon | yes | — | yes (MPS) |
+| macOS Intel | yes | — | yes (CPU) |
+
+The GPU image requires NVIDIA + `nvidia-container-toolkit` on the host. macOS users who want GPU acceleration should run natively — MPS isn't available inside Docker containers.
+
+### Pre-downloaded models
+
+If you already have the model weights locally, mount them directly instead of using Docker volumes:
+
+```bash
+# GPU
+docker run --gpus all -p 8765:8765 \
+  -v ./qwen3-asr-p25-0.6B:/model \
+  -v ./Qwen3-ForcedAligner-0.6B:/aligner \
+  ghcr.io/trunk-reporter/qwen3-asr-server:gpu
+
+# CPU
+docker run -p 8765:8765 \
+  -v ./qwen3-asr-p25-0.6B:/model \
+  ghcr.io/trunk-reporter/qwen3-asr-server:cpu
+```
+
+## Quick Start without Docker
+
+### 1. Clone and download model weights
+
+```bash
+git clone https://github.com/trunk-reporter/qwen3-asr-server.git
+cd qwen3-asr-server
+
 # ASR model (fine-tuned on P25 audio)
 git lfs install
-git clone https://huggingface.co/YOUR_USER/qwen3-asr-p25-0.6B
+git clone https://huggingface.co/AuggieActual/qwen3-asr-p25-0.6B
 
 # Forced aligner (for word-level timestamps)
 git clone https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B
@@ -80,6 +131,8 @@ cp .env.example .env
 
 | Variable | Default | Description |
 |---|---|---|
+| `INFERENCE_BACKEND` | `python` | `python` (GPU, word timestamps) or `c` (CPU, no torch needed) |
+| `C_BINARY_PATH` | `./qwen_asr` | Path to antirez/qwen-asr binary (C backend only) |
 | `MODEL_PATH` | `qwen3-asr-p25-0.6B` | Path to ASR model directory |
 | `ALIGNER_PATH` | `Qwen3-ForcedAligner-0.6B` | Path to forced aligner directory |
 | `DEVICE` | `auto` | Torch device — `auto` picks CUDA > MPS > CPU; or pin with `cuda:0`, `mps`, `cpu` |

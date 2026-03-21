@@ -30,4 +30,4 @@ elif [ "$BACKEND" = "python" ]; then
 fi
 
 echo "Starting server (backend=$BACKEND)..."
-exec python server.py "$@"
+exec python3 server.py "$@"

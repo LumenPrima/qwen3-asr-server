@@ -172,10 +172,6 @@ _counters = {
 }
 
 # ---------------------------------------------------------------------------
-# Device + dtype resolution
-# ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
 # Device + dtype resolution (Python backend only)
 # ---------------------------------------------------------------------------
 
@@ -521,9 +517,10 @@ async def transcribe(
                         f"time={processing_time}s"
                     )
 
-                    # Build word list from timestamps
+                    # Build word list from timestamps (Python backend only —
+                    # C backend doesn't support word-level timestamps)
                     words = []
-                    if want_timestamps and r and r.time_stamps:
+                    if INFERENCE_BACKEND == "python" and want_timestamps and r and r.time_stamps:
                         for item in r.time_stamps:
                             words.append({
                                 "word": item.text,
