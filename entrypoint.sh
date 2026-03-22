@@ -14,7 +14,7 @@ BACKEND="${INFERENCE_BACKEND:-python}"
 # Download ASR model if not present
 if [ ! -f "$MODEL_DIR/model.safetensors" ]; then
     echo "Downloading ASR model: $ASR_REPO -> $MODEL_DIR"
-    huggingface-cli download "$ASR_REPO" --local-dir "$MODEL_DIR"
+    hf download "$ASR_REPO" --local-dir "$MODEL_DIR"
     echo "ASR model downloaded."
 else
     echo "ASR model found at $MODEL_DIR"
@@ -23,7 +23,7 @@ fi
 # Download ForcedAligner if Python backend and not present
 if [ "$BACKEND" = "python" ] && [ ! -f "$ALIGNER_DIR/model.safetensors" ]; then
     echo "Downloading ForcedAligner: $ALIGNER_REPO -> $ALIGNER_DIR"
-    huggingface-cli download "$ALIGNER_REPO" --local-dir "$ALIGNER_DIR"
+    hf download "$ALIGNER_REPO" --local-dir "$ALIGNER_DIR"
     echo "ForcedAligner downloaded."
 elif [ "$BACKEND" = "python" ]; then
     echo "ForcedAligner found at $ALIGNER_DIR"

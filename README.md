@@ -193,6 +193,12 @@ curl -X POST http://localhost:8765/v1/audio/transcriptions \
   -F response_format=verbose_json \
   -F "timestamp_granularities[]=word"
 
+# With context prompt to help with spelling
+curl -X POST http://localhost:8765/v1/audio/transcriptions \
+  -F file=@audio.wav \
+  -F model=qwen3-asr-p25 \
+  -F prompt="Engine 12, Ladder 7, Elmhurst Avenue"
+
 # Plain text response
 curl -X POST http://localhost:8765/v1/audio/transcriptions \
   -F file=@audio.wav \
@@ -206,6 +212,7 @@ curl -X POST http://localhost:8765/v1/audio/transcriptions \
 | `file` | file | *(required)* | Audio file (wav, m4a, mp3, etc.) |
 | `model` | string | `qwen3-asr-p25` | Model name (ignored, for API compat) |
 | `language` | string | `English` | Language code (`en`, `zh`, `fr`, etc.) or full name |
+| `prompt` | string | — | Optional context to guide transcription (see [Prompt / Context](#prompt--context) below) |
 | `response_format` | string | `json` | `json`, `verbose_json`, or `text` |
 | `word_timestamps` | bool | `false` | Enable word-level timestamps (Python backend only) |
 | `timestamp_granularities[]` | list | — | Set to `word` to enable timestamps (Python backend only) |
@@ -244,6 +251,53 @@ Lists the loaded model. Compatible with OpenAI model listing.
 ### `GET /health`
 
 Returns server status, model info, current configuration, and per-worker request counters.
+
+## Prompt / Context
+
+The `prompt` parameter lets you pass context to the model to influence transcription. It's injected into the model's system prompt to nudge token probabilities toward specific terms. Works with both backends — maps to `context` in the Python backend and `--prompt` in the C backend.
+
+**Use cases:**
+
+- **Spelling and proper nouns** — nudge the model toward domain-specific names it wouldn't otherwise get right
+- **Formatting style** — hint at preferred output conventions
+- **Domain vocabulary** — provide jargon or abbreviations common to your audio source
+
+**Examples:**
+
+```bash
+# Help with local street names and unit designations
+curl -X POST http://localhost:8765/v1/audio/transcriptions \
+  -F file=@dispatch.wav \
+  -F model=qwen3-asr-p25 \
+  -F prompt="Rensselaer County, Engine 45, Pawling Avenue, Taconic Parkway"
+
+# Abbreviation and formatting hints
+curl -X POST http://localhost:8765/v1/audio/transcriptions \
+  -F file=@dispatch.wav \
+  -F model=qwen3-asr-p25 \
+  -F prompt="Use standard abbreviations: EMS, CPR, MVA, DOA"
+
+# With Python OpenAI client
+curl -X POST http://localhost:8765/v1/audio/transcriptions \
+  -F file=@dispatch.wav \
+  -F model=qwen3-asr-p25 \
+  -F prompt="St. Clair Shores PD, Lake Shore Drive, Jefferson Avenue"
+```
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://localhost:8765/v1", api_key="not-needed")
+
+transcript = client.audio.transcriptions.create(
+    model="qwen3-asr-p25",
+    file=open("dispatch.wav", "rb"),
+    prompt="Engine 12, Ladder 7, Battalion 3, Elmhurst Avenue",
+)
+print(transcript.text)
+```
+
+**Caveats:** Prompt biasing is "very soft" — the model may or may not follow your instructions. Spelling hints tend to work best. Strong or lengthy prompts can bias the model heavily, causing it to parrot the prompt instead of reflecting the actual audio. Long prompts also increase sequence length and memory/compute per request. Start with short, factual context (proper nouns, abbreviations) rather than full sentences. If results get worse, try shortening the prompt or removing it entirely.
 
 ## Inference Backends
 

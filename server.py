@@ -285,7 +285,7 @@ else:
 # ---------------------------------------------------------------------------
 # App + model
 # ---------------------------------------------------------------------------
-app = FastAPI(title="qwen3-asr-p25-server", version="1.5.0")
+app = FastAPI(title="qwen3-asr-p25-server", version="1.5.1")
 model = None  # Only loaded for python backend
 
 
@@ -327,11 +327,13 @@ def has_speech(audio_path: str) -> tuple[bool, float]:
     return rms >= SPEECH_RMS_THRESHOLD, rms
 
 
-def _run_inference(audio_path: str, lang: str, want_timestamps: bool):
+def _run_inference(audio_path: str, lang: str, want_timestamps: bool,
+                   context: str = ""):
     """Synchronous inference helper — runs model.transcribe() in a thread."""
     results = model.transcribe(
         audio=audio_path,
         language=lang,
+        context=context,
         return_time_stamps=want_timestamps,
     )
     return results
@@ -340,7 +342,8 @@ def _run_inference(audio_path: str, lang: str, want_timestamps: bool):
 # ---------------------------------------------------------------------------
 # C backend inference
 # ---------------------------------------------------------------------------
-async def _run_c_inference(wav_path: str, language: str = "English") -> str:
+async def _run_c_inference(wav_path: str, language: str = "English",
+                           prompt: str = "") -> str:
     """Transcribe via antirez/qwen-asr C binary.
 
     Takes a 16kHz mono WAV (already produced by _ensure_wav).
@@ -353,6 +356,8 @@ async def _run_c_inference(wav_path: str, language: str = "English") -> str:
         "--silent",
         "--language", language,
     ]
+    if prompt:
+        asr_cmd.extend(["--prompt", prompt])
     asr_proc = await asyncio.create_subprocess_exec(
         *asr_cmd,
         stdout=asyncio.subprocess.PIPE,
@@ -415,6 +420,7 @@ async def transcribe(
     file: UploadFile = File(...),
     model_name: str = Form("qwen3-asr-p25", alias="model"),
     language: Optional[str] = Form("English"),
+    prompt: Optional[str] = Form(None),
     response_format: str = Form("json"),
     word_timestamps: Optional[bool] = Form(None),
     timestamp_granularities: Optional[list[str]] = Form(None, alias="timestamp_granularities[]"),
@@ -460,13 +466,15 @@ async def transcribe(
             try:
                 if INFERENCE_BACKEND == "c":
                     full_text = await asyncio.wait_for(
-                        _run_c_inference(wav_path, language=lang),
+                        _run_c_inference(wav_path, language=lang,
+                                         prompt=prompt or ""),
                         timeout=INFERENCE_TIMEOUT,
                     )
                     words = []
                 else:
                     results = await asyncio.wait_for(
-                        asyncio.to_thread(_run_inference, wav_path, lang, want_timestamps),
+                        asyncio.to_thread(_run_inference, wav_path, lang,
+                                          want_timestamps, context=prompt or ""),
                         timeout=INFERENCE_TIMEOUT,
                     )
                     r = results[0] if results else None
@@ -585,7 +593,7 @@ def list_models():
 def health():
     info = {
         "status": "ok",
-        "version": "1.5.0",
+        "version": "1.5.1",
         "inference_backend": INFERENCE_BACKEND,
         "model": MODEL_PATH,
         "device": DEVICE,
