@@ -24,7 +24,9 @@ RUN git clone --depth 1 https://github.com/antirez/qwen-asr.git . && make blas
 FROM python:3.11-slim-bookworm
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
     ffmpeg \
+    jq \
     libopenblas0 \
     && rm -rf /var/lib/apt/lists/*
 

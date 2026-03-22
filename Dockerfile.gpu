@@ -41,7 +41,9 @@ RUN rm -rf \
 FROM python:3.11-slim-bookworm
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
     ffmpeg \
+    jq \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy installed packages from builder
