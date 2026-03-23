@@ -134,7 +134,7 @@ cd qwen3-asr-server
 
 # ASR model (fine-tuned on P25 audio)
 git lfs install
-git clone https://huggingface.co/AuggieActual/qwen3-asr-p25-0.6B
+git clone https://huggingface.co/trunk-reporter/qwen3-asr-p25-0.6B
 
 # Forced aligner (for word-level timestamps)
 git clone https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B

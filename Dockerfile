@@ -50,7 +50,7 @@ COPY server.py entrypoint.sh ./
 ENV INFERENCE_BACKEND=c \
     C_BINARY_PATH=/app/qwen_asr \
     MODEL_PATH=/model \
-    ASR_MODEL_REPO=AuggieActual/qwen3-asr-p25-0.6B \
+    ASR_MODEL_REPO=trunk-reporter/qwen3-asr-p25-0.6B \
     HOST=0.0.0.0 \
     PORT=8765 \
     WORKERS=1 \

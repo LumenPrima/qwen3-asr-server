@@ -58,7 +58,7 @@ COPY server.py entrypoint.sh ./
 ENV INFERENCE_BACKEND=python \
     MODEL_PATH=/model \
     ALIGNER_PATH=/aligner \
-    ASR_MODEL_REPO=AuggieActual/qwen3-asr-p25-0.6B \
+    ASR_MODEL_REPO=trunk-reporter/qwen3-asr-p25-0.6B \
     ALIGNER_MODEL_REPO=Qwen/Qwen3-ForcedAligner-0.6B \
     DEVICE=auto \
     DTYPE=bfloat16 \

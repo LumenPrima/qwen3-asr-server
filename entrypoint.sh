@@ -6,7 +6,7 @@ set -euo pipefail
 # -------------------------------------------------------------------
 
 MODEL_DIR="${MODEL_PATH:-/model}"
-ASR_REPO="${ASR_MODEL_REPO:-AuggieActual/qwen3-asr-p25-0.6B}"
+ASR_REPO="${ASR_MODEL_REPO:-trunk-reporter/qwen3-asr-p25-0.6B}"
 ALIGNER_DIR="${ALIGNER_PATH:-/aligner}"
 ALIGNER_REPO="${ALIGNER_MODEL_REPO:-Qwen/Qwen3-ForcedAligner-0.6B}"
 BACKEND="${INFERENCE_BACKEND:-python}"
