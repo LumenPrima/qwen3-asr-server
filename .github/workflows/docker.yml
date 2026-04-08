@@ -100,10 +100,12 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           SAFE_COMMIT=$(echo "$COMMIT_MSG" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
-          MESSAGE="🔴 <b>CI Failed:</b> qwen3-asr-server/${WORKFLOW}
-<b>Branch:</b> ${BRANCH}
-<b>Commit:</b> ${SAFE_COMMIT}
-<a href=\"${RUN_URL}\">View Run</a>"
+          read -r -d '' MESSAGE <<MSGEOF
+          🔴 <b>CI Failed:</b> qwen3-asr-server/${WORKFLOW}
+          <b>Branch:</b> ${BRANCH}
+          <b>Commit:</b> ${SAFE_COMMIT}
+          <a href="${RUN_URL}">View Run</a>
+          MSGEOF
           curl -fsSX POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
             --data-urlencode "text=$MESSAGE" \
             -d chat_id="$TELEGRAM_CHAT_ID" \
